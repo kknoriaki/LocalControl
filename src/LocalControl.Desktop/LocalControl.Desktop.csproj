@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><UseWindowsForms>true</UseWindowsForms><AssemblyName>LocalControl</AssemblyName><ApplicationManifest>app.manifest</ApplicationManifest></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../LocalControl.Windows/LocalControl.Windows.csproj" /><ProjectReference Include="../LocalControl.Server/LocalControl.Server.csproj" /><PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" /></ItemGroup>
+ <ItemGroup><Content Include="../LocalControl.Web/dist/**/*"><Link>wwwroot/%(RecursiveDir)%(Filename)%(Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory></Content></ItemGroup>
+</Project>

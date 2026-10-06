@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="src/LocalControl.Core/LocalControl.Core.csproj" />
+  <Project Path="src/LocalControl.Server/LocalControl.Server.csproj" />
+  <Project Path="src/LocalControl.Windows/LocalControl.Windows.csproj" />
+  <Project Path="src/LocalControl.Desktop/LocalControl.Desktop.csproj" />
+  <Project Path="src/LocalControl.Updater/LocalControl.Updater.csproj" />
+  <Project Path="tests/LocalControl.Tests/LocalControl.Tests.csproj" />
+</Solution>
