@@ -57,6 +57,8 @@ LangString DesktopShortcut ${LANG_RUSSIAN} "Ярлык на рабочем ст�
 LangString DesktopShortcut ${LANG_ENGLISH} "Desktop shortcut"
 LangString StartWindows ${LANG_RUSSIAN} "Запускать с Windows"
 LangString StartWindows ${LANG_ENGLISH} "Start with Windows"
+LangString StartupCheckFailed ${LANG_RUSSIAN} "Проверка запуска LocalControl не прошла. Файлы предыдущей версии восстановлены."
+LangString StartupCheckFailed ${LANG_ENGLISH} "LocalControl startup check failed. Previous files were restored."
 
 Function StopApp
  InitPluginsDir
@@ -104,7 +106,7 @@ Section "LocalControl" SEC_MAIN
  Pop $0
  ${If} $0 != 0
    Call RollbackFiles
-   MessageBox MB_ICONSTOP "LocalControl startup check failed. Previous files were restored." /SD IDOK
+   MessageBox MB_ICONSTOP "$(StartupCheckFailed)" /SD IDOK
    Abort
  ${EndIf}
  StrCpy $UpgradePrepared "no"
@@ -126,6 +128,16 @@ SectionEnd
 Section /o "$(StartWindows)" SEC_STARTUP
  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "LocalControl" '$\"$INSTDIR\LocalControl.exe$\" --tray'
 SectionEnd
+Function .onInstSuccess
+ SectionGetFlags ${SEC_STARTUP} $0
+ IntOp $0 $0 & ${SF_SELECTED}
+ ${If} $0 == 0
+   ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "LocalControl"
+   ${If} $1 == '$\"$INSTDIR\LocalControl.exe$\" --tray'
+     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "LocalControl"
+   ${EndIf}
+ ${EndIf}
+FunctionEnd
 Function un.onInit
  !insertmacro MUI_UNGETLANGUAGE
  SetShellVarContext current

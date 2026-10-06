@@ -26,10 +26,66 @@ try {
     Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
     Add-Type @'
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class WizardButtons {
  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr parent,int id);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h,uint m,IntPtr w,IntPtr l);
+ delegate bool ChildCallback(IntPtr h,IntPtr l);
+ [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr h,ChildCallback callback,IntPtr l);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr h,StringBuilder text,int count);
+ [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+ [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern IntPtr OpenProcess(uint access,bool inherit,uint pid);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool IsWow64Process(IntPtr process,out bool wow64);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern IntPtr VirtualAllocEx(IntPtr process,IntPtr address,UIntPtr size,uint type,uint protection);
+ [DllImport("kernel32.dll")] static extern bool VirtualFreeEx(IntPtr process,IntPtr address,UIntPtr size,uint type);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool WriteProcessMemory(IntPtr process,IntPtr address,byte[] bytes,UIntPtr size,out UIntPtr count);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool ReadProcessMemory(IntPtr process,IntPtr address,byte[] bytes,UIntPtr size,out UIntPtr count);
+ [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+ static Exception NativeError() { return new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()); }
+ public static string[] ComponentNames(IntPtr wizard) {
+   IntPtr tree=IntPtr.Zero;
+   EnumChildWindows(wizard,(h,l)=>{var name=new StringBuilder(128);GetClassName(h,name,name.Capacity);if(name.ToString()=="SysTreeView32"&&IsWindowVisible(h)){tree=h;return false;}return true;},IntPtr.Zero);
+   if(tree==IntPtr.Zero) return new string[0];
+   uint pid;GetWindowThreadProcessId(tree,out pid);
+   var process=OpenProcess(0x1038,false,pid);
+   if(process==IntPtr.Zero) throw NativeError();
+   IntPtr remote=IntPtr.Zero;
+   try {
+     bool wow64;if(!IsWow64Process(process,out wow64)) throw NativeError();
+     bool target32=IntPtr.Size==4||wow64;
+     remote=VirtualAllocEx(process,IntPtr.Zero,(UIntPtr)4096,0x3000,4);
+     if(remote==IntPtr.Zero) throw NativeError();
+     var textAddress=new IntPtr(remote.ToInt64()+128);
+     var names=new List<string>();
+     // TVM_GETNEXTITEM (root, next sibling) and TVM_GETITEMW read the
+     // actual Unicode tree labels. NSIS's component tree lacks UIA items.
+     var item=SendMessage(tree,0x110A,IntPtr.Zero,IntPtr.Zero);
+     for(int i=0;i<100&&item!=IntPtr.Zero;i++) {
+       var structure=new byte[target32?40:56];
+       BitConverter.GetBytes(1u).CopyTo(structure,0); // TVIF_TEXT
+       if(target32) {
+         BitConverter.GetBytes(unchecked((uint)item.ToInt64())).CopyTo(structure,4);
+         BitConverter.GetBytes(unchecked((uint)textAddress.ToInt64())).CopyTo(structure,16);
+         BitConverter.GetBytes(1024).CopyTo(structure,20);
+       } else {
+         BitConverter.GetBytes(item.ToInt64()).CopyTo(structure,8);
+         BitConverter.GetBytes(textAddress.ToInt64()).CopyTo(structure,24);
+         BitConverter.GetBytes(1024).CopyTo(structure,32);
+       }
+       UIntPtr count;
+       if(!WriteProcessMemory(process,remote,structure,(UIntPtr)structure.Length,out count)) throw NativeError();
+       if(SendMessage(tree,0x113E,IntPtr.Zero,remote)==IntPtr.Zero) throw new InvalidOperationException("Cannot read installer tree item");
+       var bytes=new byte[2048];
+       if(!ReadProcessMemory(process,textAddress,bytes,(UIntPtr)bytes.Length,out count)) throw NativeError();
+       names.Add(Encoding.Unicode.GetString(bytes).Split('\0')[0]);
+       item=SendMessage(tree,0x110A,(IntPtr)1,item);
+     }
+     return names.ToArray();
+   } finally {if(remote!=IntPtr.Zero)VirtualFreeEx(process,remote,UIntPtr.Zero,0x8000);CloseHandle(process);}
+ }
 }
 '@
     $wizard=Start-Process $setup -ArgumentList '/LANG=1049' -PassThru
@@ -43,10 +99,11 @@ public static class WizardButtons {
         $names=@()
         $valid=WaitUntil {
             $window=[Windows.Automation.AutomationElement]::FromHandle($wizard.MainWindowHandle)
-            $script:optionNames=@($window.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition) | ForEach-Object {$_.Current.Name})
+            $script:optionNames=@($window.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition) | ForEach-Object {$_.Current.Name}) + @([WizardButtons]::ComponentNames($wizard.MainWindowHandle))
             ($script:optionNames -contains 'Ярлык на рабочем столе') -and ($script:optionNames -contains 'Запускать с Windows')
         } 10
         $names=$script:optionNames
+        Write-Host ('Compiled installer labels: '+($names -join ' | '))
         $names | ConvertTo-Json | Set-Content (Join-Path $qa 'installer-russian.json') -Encoding utf8
         Check $valid 'compiled installer shows readable Russian component names'
     } finally {if(-not $wizard.HasExited){$wizard.Kill();$wizard.WaitForExit()}}
