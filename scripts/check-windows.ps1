@@ -149,5 +149,7 @@ public static class WizardButtons {
     if(Test-Path (Join-Path $data 'logs')) {Copy-Item (Join-Path $data 'logs/*.log') $qa -ErrorAction SilentlyContinue}
     $log=Join-Path $data 'logs/installer.log'
     if(Test-Path $log){Write-Host 'Installer stage results:';Get-Content $log|Write-Host}
+    $log=Join-Path $data 'logs/installer-helper.log'
+    if(Test-Path $log){Write-Host 'Installer helper results:';Get-Content $log|Write-Host}
     throw
 } finally {Remove-Item $temporary -Recurse -Force -ErrorAction SilentlyContinue}

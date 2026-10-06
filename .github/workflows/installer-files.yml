@@ -1,0 +1,43 @@
+name: Installer file rollback
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  file-rollback:
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native PowerShell 5.1 backup and rollback with Unicode paths
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:TEMP ('LocalControl-file-test-'+[guid]::NewGuid().ToString('N'))
+          $install=Join-Path $root 'Установка программы'
+          $backup=Join-Path $root 'Сохранённая версия'
+          $native=Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
+          try {
+            New-Item (Join-Path $install 'wwwroot/assets') -ItemType Directory -Force | Out-Null
+            Set-Content (Join-Path $install 'LocalControl.exe') 'old application' -Encoding utf8
+            Set-Content (Join-Path $install 'Uninstall.exe') 'old uninstaller' -Encoding utf8
+            Set-Content (Join-Path $install 'wwwroot/assets/old.js') 'old interface' -Encoding utf8
+            Set-Content (Join-Path $install 'keep.txt') 'user file' -Encoding utf8
+            @('LocalControl.exe','wwwroot/assets/old.js','owned-files.json') | ConvertTo-Json | Set-Content (Join-Path $install 'owned-files.json') -Encoding utf8
+            $before=@{}
+            Get-ChildItem $install -Recurse -File | ForEach-Object { $before[[IO.Path]::GetRelativePath($install,$_.FullName)]=(Get-FileHash $_.FullName).Hash }
+            & $native -NoProfile -ExecutionPolicy Bypass -File ./scripts/Prepare-Install.ps1 -InstallDirectory $install -BackupDirectory $backup -Diagnostics
+            if($LASTEXITCODE -ne 0){throw 'Previous-file preparation failed'}
+            if(Test-Path (Join-Path $install 'LocalControl.exe')){throw 'Old owned files were not removed'}
+            if(-not(Test-Path (Join-Path $install 'keep.txt'))){throw 'User file was removed'}
+            Set-Content (Join-Path $install 'LocalControl.exe') 'new application' -Encoding utf8
+            Set-Content (Join-Path $install 'Uninstall.exe') 'new uninstaller' -Encoding utf8
+            Set-Content (Join-Path $install 'wwwroot/assets/new.js') 'new interface' -Encoding utf8
+            @('LocalControl.exe','wwwroot/assets/new.js','owned-files.json') | ConvertTo-Json | Set-Content (Join-Path $install 'owned-files.json') -Encoding utf8
+            & $native -NoProfile -ExecutionPolicy Bypass -File ./scripts/Prepare-Install.ps1 -InstallDirectory $install -BackupDirectory $backup -Restore -Diagnostics
+            if($LASTEXITCODE -ne 0){throw 'Rollback failed'}
+            foreach($relative in $before.Keys){if((Get-FileHash (Join-Path $install $relative)).Hash -ne $before[$relative]){throw "Rollback did not preserve $relative"}}
+            if(Test-Path (Join-Path $install 'wwwroot/assets/new.js')){throw 'New-only asset survived rollback'}
+            Write-Host 'PASS native installer backup, owned cleanup, byte-exact rollback and user-file preservation'
+          } finally {Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue}

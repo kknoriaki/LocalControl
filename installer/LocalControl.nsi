@@ -10,6 +10,7 @@ Var UpgradePrepared
 !macro InstallerLog Stage
  CreateDirectory "$LOCALAPPDATA\LocalControl\logs"
  FileOpen $9 "$LOCALAPPDATA\LocalControl\logs\installer.log" a
+ FileSeek $9 0 END
  FileWrite $9 "${Stage}: $0$\r$\n"
  FileClose $9
 !macroend

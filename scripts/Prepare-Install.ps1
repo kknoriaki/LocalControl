@@ -1,5 +1,5 @@
 ﻿[CmdletBinding()]
-param([Parameter(Mandatory=$true)][string]$InstallDirectory,[Parameter(Mandatory=$true)][string]$BackupDirectory,[switch]$Restore)
+param([Parameter(Mandatory=$true)][string]$InstallDirectory,[Parameter(Mandatory=$true)][string]$BackupDirectory,[switch]$Restore,[switch]$Diagnostics)
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
 $backup=[IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\')
@@ -47,6 +47,13 @@ try {
     foreach($relative in $existing){Remove-Item (SafePath $root $relative) -Force}
     exit 0
 } catch {
+    $failure=$_
+    if($Diagnostics){Write-Host $failure.Exception.ToString();Write-Host $failure.ScriptStackTrace}
+    try {
+        $logs=Join-Path $env:LOCALAPPDATA 'LocalControl/logs'
+        New-Item $logs -ItemType Directory -Force | Out-Null
+        Add-Content (Join-Path $logs 'installer-helper.log') ("prepare {0} {1} line {2}" -f $failure.Exception.GetType().Name,$failure.FullyQualifiedErrorId,$failure.InvocationInfo.ScriptLineNumber)
+    } catch { }
     if(-not $Restore){try{RestoreFiles}catch{}}
     Write-Error 'Installation could not proceed; previous application files were restored where available.'
     exit 1
