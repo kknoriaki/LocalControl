@@ -136,13 +136,15 @@ public static class WizardButtons {
     Check (WaitUntil {$current.Refresh();$current.MainWindowHandle -ne [IntPtr]::Zero}) 'application is running before uninstall'
     Run (Join-Path $install 'Uninstall.exe') '/S'
     Check (WaitUntil {-not(Test-Path (Join-Path $install 'LocalControl.exe'))}) 'uninstall closes running application and removes executable'
+    # NSIS starts its uninstaller from a temporary copy. The original stub
+    # exits before that copy finishes removing the rest of the payload.
+    $owned=@(Get-Content (Join-Path $projectRoot 'artifacts/win-x64/owned-files.json') -Raw|ConvertFrom-Json) + @('Uninstall.exe')
+    Check (WaitUntil {@($owned|Where-Object {Test-Path (Join-Path $install $_)}).Count -eq 0}) 'uninstall removes every packaged application file'
     Check (-not(Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\LocalControl')) 'uninstall removes installed-app entry'
     Check (Test-Path (Join-Path $received 'keep.txt')) 'uninstall preserves received files'
     Check ((Get-FileHash (Join-Path $data 'settings.json')).Hash -eq $settingsHash) 'uninstall preserves settings'
     Check ((Get-FileHash (Join-Path $data 'devices.json')).Hash -eq $devicesHash) 'uninstall preserves devices'
     Check (Test-Path (Join-Path $install 'unrelated-user-file.txt')) 'uninstall preserves unrelated user file'
-    $owned=Get-Content (Join-Path $projectRoot 'artifacts/win-x64/owned-files.json') -Raw|ConvertFrom-Json
-    Check (@($owned|Where-Object {Test-Path (Join-Path $install $_)}).Count -eq 0) 'uninstall removes every packaged application file'
     @{version=$Version;passed=$results.Count;checks=$results;success=$true}|ConvertTo-Json -Depth 4|Set-Content (Join-Path $qa 'windows-acceptance.json') -Encoding utf8
     Write-Host "$($results.Count) Windows acceptance checks passed."
 } catch {
@@ -152,4 +154,4 @@ public static class WizardButtons {
     $log=Join-Path $data 'logs/installer-helper.log'
     if(Test-Path $log){Write-Host 'Installer helper results:';Get-Content $log|Write-Host}
     throw
-} finally {Remove-Item $temporary -Recurse -Force -ErrorAction SilentlyContinue}
+} finally {try{Remove-Item $temporary -Recurse -Force -ErrorAction SilentlyContinue}catch{}}
