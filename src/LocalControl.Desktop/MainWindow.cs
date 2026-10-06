@@ -97,7 +97,7 @@ internal sealed class MainWindow : Form
                 if (store.Get().AutoStart != enabled) store.Set(store.Get() with { AutoStart = enabled });
             }
             var trust = new TrustStore(data);
-            host = new ControlHost(computer, trust, Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+            host = new ControlHost(computer, trust, Path.Combine(AppContext.BaseDirectory, "wwwroot"), data);
             host.Diagnostic += Diagnostic;
             host.ApplyUpdate = ApplyUpdate;
             host.OpenDownloads = () => Process.Start(new ProcessStartInfo("https://github.com/kknoriaki/LocalControl/releases/latest") { UseShellExecute = true });
