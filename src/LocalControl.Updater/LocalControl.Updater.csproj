@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><UseWindowsForms>true</UseWindowsForms><AssemblyName>LocalControl.Updater</AssemblyName></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../LocalControl.Core/LocalControl.Core.csproj" /></ItemGroup>
+</Project>

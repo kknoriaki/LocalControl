@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>net10.0-windows10.0.19041.0</TargetFramework><UseWindowsForms>true</UseWindowsForms></PropertyGroup>
+ <ItemGroup><ProjectReference Include="../LocalControl.Core/LocalControl.Core.csproj" /><PackageReference Include="NAudio.Wasapi" Version="2.2.1" /><PackageReference Include="System.Management" Version="10.0.0" /></ItemGroup>
+</Project>

@@ -1,0 +1,141 @@
++{
+  "fileKey": "ei6PqETHMPsUEkj1ehmRBr",
+  "url": "https://www.figma.com/design/ei6PqETHMPsUEkj1ehmRBr",
+  "reports": [
+    {
+      "id": "3:1422",
+      "name": "Desktop / Dashboard",
+      "width": 1440,
+      "height": 900,
+      "descendantCount": 198,
+      "types": {
+        "FRAME": 59,
+        "INSTANCE": 34,
+        "VECTOR": 41,
+        "TEXT": 57,
+        "RECTANGLE": 7
+      },
+      "rasterUI": 0,
+      "wrongFonts": [],
+      "clippedText": []
+    },
+    {
+      "id": "3:1666",
+      "name": "Mobile / Home",
+      "width": 393,
+      "height": 852,
+      "descendantCount": 115,
+      "types": {
+        "FRAME": 42,
+        "TEXT": 28,
+        "INSTANCE": 14,
+        "VECTOR": 29,
+        "RECTANGLE": 2
+      },
+      "rasterUI": 0,
+      "wrongFonts": [],
+      "clippedText": []
+    },
+    {
+      "id": "3:1782",
+      "name": "Mobile / Audio Mixer",
+      "width": 393,
+      "height": 852,
+      "descendantCount": 110,
+      "types": {
+        "FRAME": 39,
+        "TEXT": 26,
+        "INSTANCE": 14,
+        "VECTOR": 22,
+        "RECTANGLE": 9
+      },
+      "rasterUI": 0,
+      "wrongFonts": [],
+      "clippedText": []
+    },
+    {
+      "id": "3:1913",
+      "name": "Mobile / Applications",
+      "width": 393,
+      "height": 852,
+      "descendantCount": 115,
+      "types": {
+        "FRAME": 29,
+        "TEXT": 32,
+        "INSTANCE": 18,
+        "VECTOR": 30,
+        "RECTANGLE": 6
+      },
+      "rasterUI": 0,
+      "wrongFonts": [],
+      "clippedText": []
+    },
+    {
+      "id": "3:2059",
+      "name": "Mobile / Remote Control",
+      "width": 393,
+      "height": 852,
+      "descendantCount": 61,
+      "types": {
+        "FRAME": 19,
+        "TEXT": 17,
+        "INSTANCE": 9,
+        "VECTOR": 16
+      },
+      "rasterUI": 0,
+      "wrongFonts": [],
+      "clippedText": []
+    },
+    {
+      "id": "3:2121",
+      "name": "Desktop / Applications",
+      "width": 1440,
+      "height": 900,
+      "descendantCount": 159,
+      "types": {
+        "FRAME": 34,
+        "INSTANCE": 34,
+        "VECTOR": 40,
+        "TEXT": 44,
+        "RECTANGLE": 7
+      },
+      "rasterUI": 0,
+      "wrongFonts": [],
+      "clippedText": []
+    },
+    {
+      "id": "3:2356",
+      "name": "Desktop / Audio",
+      "width": 1440,
+      "height": 900,
+      "descendantCount": 180,
+      "types": {
+        "FRAME": 58,
+        "INSTANCE": 31,
+        "VECTOR": 32,
+        "TEXT": 44,
+        "RECTANGLE": 15
+      },
+      "rasterUI": 0,
+      "wrongFonts": [],
+      "clippedText": []
+    },
+    {
+      "id": "3:2602",
+      "name": "Desktop / Settings & Pairing",
+      "width": 1440,
+      "height": 900,
+      "descendantCount": 138,
+      "types": {
+        "FRAME": 38,
+        "INSTANCE": 24,
+        "VECTOR": 26,
+        "TEXT": 41,
+        "RECTANGLE": 9
+      },
+      "rasterUI": 0,
+      "wrongFonts": [],
+      "clippedText": []
+    }
+  ]
+}
