@@ -145,4 +145,9 @@ public static class WizardButtons {
     Check (@($owned|Where-Object {Test-Path (Join-Path $install $_)}).Count -eq 0) 'uninstall removes every packaged application file'
     @{version=$Version;passed=$results.Count;checks=$results;success=$true}|ConvertTo-Json -Depth 4|Set-Content (Join-Path $qa 'windows-acceptance.json') -Encoding utf8
     Write-Host "$($results.Count) Windows acceptance checks passed."
+} catch {
+    if(Test-Path (Join-Path $data 'logs')) {Copy-Item (Join-Path $data 'logs/*.log') $qa -ErrorAction SilentlyContinue}
+    $log=Join-Path $data 'logs/installer.log'
+    if(Test-Path $log){Write-Host 'Installer stage results:';Get-Content $log|Write-Host}
+    throw
 } finally {Remove-Item $temporary -Recurse -Force -ErrorAction SilentlyContinue}

@@ -5,6 +5,14 @@
 !include "Sections.nsh"
 !include "FileFunc.nsh"
 Var UpgradePrepared
+; NSIS is a 32-bit process. Sysnative explicitly launches 64-bit PowerShell
+; so process-path inspection sees the installed 64-bit application.
+!macro InstallerLog Stage
+ CreateDirectory "$LOCALAPPDATA\LocalControl\logs"
+ FileOpen $9 "$LOCALAPPDATA\LocalControl\logs\installer.log" a
+ FileWrite $9 "${Stage}: $0$\r$\n"
+ FileClose $9
+!macroend
 !ifndef PUBLISH_DIR
  !error "Pass /DPUBLISH_DIR=<self-contained publish directory>"
 !endif
@@ -65,14 +73,16 @@ Function StopApp
  SetOutPath "$PLUGINSDIR"
  File /oname=Stop-App.ps1 "${PUBLISH_DIR}\Stop-App.ps1"
  File /oname=Prepare-Install.ps1 "${PUBLISH_DIR}\Prepare-Install.ps1"
- nsExec::ExecToLog /TIMEOUT=30000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Stop-App.ps1" -InstallDirectory "$INSTDIR"'
+ nsExec::ExecToLog /TIMEOUT=30000 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Stop-App.ps1" -InstallDirectory "$INSTDIR"'
  Pop $0
+ !insertmacro InstallerLog "stop-install"
  ${If} $0 == 2
    IfSilent terminate_install
    MessageBox MB_YESNO|MB_ICONQUESTION "$(LegacyClose)" IDNO cancel_install
    terminate_install:
-   nsExec::ExecToLog /TIMEOUT=30000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Stop-App.ps1" -InstallDirectory "$INSTDIR" -AllowTerminate'
+   nsExec::ExecToLog /TIMEOUT=30000 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Stop-App.ps1" -InstallDirectory "$INSTDIR" -AllowTerminate'
    Pop $0
+   !insertmacro InstallerLog "stop-install-legacy"
  ${EndIf}
  ${If} $0 != 0
    MessageBox MB_ICONSTOP "$(CloseApp)" /SD IDOK
@@ -82,8 +92,9 @@ Function StopApp
 FunctionEnd
 Function RollbackFiles
  ${If} $UpgradePrepared == "yes"
-   nsExec::ExecToLog /TIMEOUT=30000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Prepare-Install.ps1" -InstallDirectory "$INSTDIR" -BackupDirectory "$PLUGINSDIR\old-version" -Restore'
+   nsExec::ExecToLog /TIMEOUT=30000 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Prepare-Install.ps1" -InstallDirectory "$INSTDIR" -BackupDirectory "$PLUGINSDIR\old-version" -Restore'
    Pop $0
+   !insertmacro InstallerLog "rollback"
    StrCpy $UpgradePrepared "no"
  ${EndIf}
 FunctionEnd
@@ -93,8 +104,9 @@ FunctionEnd
 Section "LocalControl" SEC_MAIN
  SectionIn RO
  Call StopApp
- nsExec::ExecToLog /TIMEOUT=30000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Prepare-Install.ps1" -InstallDirectory "$INSTDIR" -BackupDirectory "$PLUGINSDIR\old-version"'
+ nsExec::ExecToLog /TIMEOUT=30000 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Prepare-Install.ps1" -InstallDirectory "$INSTDIR" -BackupDirectory "$PLUGINSDIR\old-version"'
  Pop $0
+ !insertmacro InstallerLog "prepare"
  ${If} $0 != 0
    Abort
  ${EndIf}
@@ -104,6 +116,7 @@ Section "LocalControl" SEC_MAIN
  WriteUninstaller "$INSTDIR\Uninstall.exe"
  nsExec::ExecToLog /TIMEOUT=30000 '"$INSTDIR\LocalControl.exe" --health-check'
  Pop $0
+ !insertmacro InstallerLog "startup-check"
  ${If} $0 != 0
    Call RollbackFiles
    MessageBox MB_ICONSTOP "$(StartupCheckFailed)" /SD IDOK
@@ -142,14 +155,16 @@ Function un.onInit
  !insertmacro MUI_UNGETLANGUAGE
  SetShellVarContext current
  SetRegView 64
- nsExec::ExecToLog /TIMEOUT=30000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\Stop-App.ps1" -InstallDirectory "$INSTDIR"'
+ nsExec::ExecToLog /TIMEOUT=30000 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\Stop-App.ps1" -InstallDirectory "$INSTDIR"'
  Pop $0
+ !insertmacro InstallerLog "stop-uninstall"
  ${If} $0 == 2
    IfSilent terminate_uninstall
    MessageBox MB_YESNO|MB_ICONQUESTION "$(LegacyClose)" IDNO cancel_uninstall
    terminate_uninstall:
-   nsExec::ExecToLog /TIMEOUT=30000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\Stop-App.ps1" -InstallDirectory "$INSTDIR" -AllowTerminate'
+   nsExec::ExecToLog /TIMEOUT=30000 '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\Stop-App.ps1" -InstallDirectory "$INSTDIR" -AllowTerminate'
    Pop $0
+   !insertmacro InstallerLog "stop-uninstall-legacy"
  ${EndIf}
  ${If} $0 != 0
    MessageBox MB_ICONSTOP "$(CloseApp)" /SD IDOK
@@ -207,7 +222,7 @@ Function .onInit
    InitPluginsDir
    SetOutPath "$PLUGINSDIR"
    File /oname=Install-WebView2.ps1 "${PUBLISH_DIR}\Install-WebView2.ps1"
-   nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Install-WebView2.ps1"'
+   nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\Install-WebView2.ps1"'
    Pop $1
    ${If} $1 == 0
      Goto runtime_ready
