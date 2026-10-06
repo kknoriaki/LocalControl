@@ -14,13 +14,27 @@ function SafePath([string]$base,[string]$relative){
     }
     return $path
 }
+function ReadFileList([string]$file) {
+    if((Get-Item $file).Length -gt 2MB){throw 'Invalid installed file list'}
+    $json=[IO.File]::ReadAllText($file).Trim()
+    if(-not($json.StartsWith('[') -and $json.EndsWith(']'))){throw 'Invalid installed file list'}
+    # Windows PowerShell 5.1 outputs JSON arrays as one pipeline object.
+    # Enumerate explicitly, also preserving UTF-8 filenames without a BOM.
+    $list=ConvertFrom-Json -InputObject $json
+    $count=0
+    foreach($item in $list) {
+        $count++
+        if($item -isnot [string] -or $count -gt 10000){throw 'Invalid installed filename'}
+        $item
+    }
+}
 function RestoreFiles {
     $listFile=Join-Path $backup 'backup-list.json'
     if(-not(Test-Path $listFile)){return}
-    $old=@(Get-Content $listFile -Raw | ConvertFrom-Json)
+    $old=@(ReadFileList $listFile)
     $manifest=Join-Path $root 'owned-files.json'
     if(Test-Path $manifest){
-        try{$new=@(Get-Content $manifest -Raw | ConvertFrom-Json)}catch{$new=@()}
+        try{$new=@(ReadFileList $manifest)}catch{$new=@()}
         if(Test-Path (Join-Path $root 'Uninstall.exe')){$new+='Uninstall.exe'}
         foreach($relative in $new){if($old -notcontains $relative){$file=SafePath $root $relative;if(Test-Path $file){Remove-Item $file -Force}}}
     }
@@ -32,9 +46,7 @@ try {
     $manifest=Join-Path $root 'owned-files.json'
     $files=@()
     if(Test-Path $manifest){
-        if((Get-Item $manifest).Length -gt 2MB){throw 'Invalid installed file list'}
-        $files=@(Get-Content $manifest -Raw | ConvertFrom-Json)
-        if($files.Count -gt 10000){throw 'Invalid installed file count'}
+        $files=@(ReadFileList $manifest)
         if(Test-Path (Join-Path $root 'Uninstall.exe')){$files+='Uninstall.exe'}
     }
     $existing=@()
