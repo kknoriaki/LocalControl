@@ -1,3 +1,5 @@
+> Исторический отчёт для 0.2/0.3.0. Актуальные изменения и проверки: README.md, CHANGELOG.md, scripts/check-windows.ps1 и Windows QA artifacts.
+
 # Проверка LocalControl 0.2.0-dev
 
 Дата: 6 октября 2026. Среда проверки: Linux, Node.js 24.19.0, Chromium 153.0.8010.0.

@@ -88,15 +88,24 @@ try
     }
 
     var web = Path.Combine(directory, "web"); Directory.CreateDirectory(web); await File.WriteAllTextAsync(Path.Combine(web, "index.html"), "<!doctype html><title>Test</title>");
+    Directory.CreateDirectory(Path.Combine(web, "assets"));
+    await File.WriteAllTextAsync(Path.Combine(web, "assets", "test.js"), "window.staticAssetReady=true;");
     var apiTrust = new TrustStore(Path.Combine(directory, "api"));
     var computer = new FakeComputer();
     await using var host = new ControlHost(computer, apiTrust, web, Path.Combine(directory,"host"));
     await host.Start();
     using var client = new HttpClient(new HttpClientHandler { UseCookies = false, UseProxy = false }) { BaseAddress = new(host.DesktopUrl) };
+    var rootPage = await client.GetAsync("/");
+    Check(rootPage.IsSuccessStatusCode && (await rootPage.Content.ReadAsStringAsync()).Contains("<title>Test</title>"), "desktop root serves index instead of 404");
+    Check(rootPage.Content.Headers.ContentType?.MediaType == "text/html", "desktop root uses HTML content type");
+    Check((await client.GetAsync("/index.html")).IsSuccessStatusCode, "direct index URL serves static document");
+    Check((await client.GetStringAsync("/assets/test.js")).Contains("staticAssetReady"), "JavaScript assets served by real host");
+    Check((await client.GetAsync("/assets/missing.js")).StatusCode == HttpStatusCode.NotFound, "missing assets never return HTML");
     Check((await client.GetAsync("/health")).IsSuccessStatusCode, "health contains no authentication requirement");
     Check((await client.GetAsync("/api/v1/state")).StatusCode == HttpStatusCode.Unauthorized, "anonymous state rejected");
     var desktop = apiTrust.CreateDesktop();
     client.DefaultRequestHeaders.Add("Cookie", "lc_session=" + desktop.Credential);
+    Check((await client.GetAsync("/api/v1/missing")).StatusCode == HttpStatusCode.NotFound, "unknown authenticated API remains 404");
     Check((await client.GetAsync("/api/v1/state")).IsSuccessStatusCode, "authenticated state delivered");
     var spoof = new HttpRequestMessage(HttpMethod.Get, "/api/v1/state"); spoof.Headers.Host = "evil.invalid";
     Check((await client.SendAsync(spoof)).StatusCode == HttpStatusCode.BadRequest, "DNS rebinding Host rejected");
@@ -116,6 +125,8 @@ try
         await host.SetNetwork(addresses[0], CancellationToken.None);
         using var phone = new HttpClient(new HttpClientHandler { UseCookies = false, UseProxy = false }) { BaseAddress = new(host.LanUrl!) };
         phone.DefaultRequestHeaders.Add("Origin", host.LanUrl);
+        Check((await phone.GetAsync("/")).IsSuccessStatusCode, "LAN root serves pairing application");
+        Check((await phone.GetStringAsync("/assets/test.js")).Contains("staticAssetReady"), "LAN JavaScript assets served");
         phone.DefaultRequestHeaders.Add("Cookie", "lc_session=" + desktop.Credential);
         Check((await phone.GetAsync("/api/v1/state")).StatusCode == HttpStatusCode.Unauthorized, "LAN refuses native desktop cookie over HTTP");
         phone.DefaultRequestHeaders.Remove("Cookie");

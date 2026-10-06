@@ -1,17 +1,27 @@
-name: Windows build and prerelease
+name: Windows release build
 on:
   workflow_dispatch:
   pull_request:
   push:
     branches: [main]
+    paths-ignore: ['docs/**', 'README.md', 'CHANGELOG.md']
 permissions:
   contents: read
 jobs:
   build:
     runs-on: windows-2025
-    timeout-minutes: 20
+    timeout-minutes: 25
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+      - name: Read release version
+        id: version
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content Directory.Build.props -Raw)).Project.PropertyGroup.Version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Release version must be numeric without dev suffix' }
+          "version=$version" >> $env:GITHUB_OUTPUT
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -23,7 +33,7 @@ jobs:
       - name: Install NSIS
         shell: pwsh
         run: choco install nsis --yes --no-progress
-      - name: Build and API/security checks
+      - name: Build, static-page regression and API checks
         shell: pwsh
         run: ./scripts/build.ps1 -Installer
       - name: Browser contract checks
@@ -34,51 +44,66 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Chromium install failed' }
           npm test
           if ($LASTEXITCODE -ne 0) { throw 'Browser checks failed' }
-      - name: Native adapter startup check
+      - name: Download previous release for update regression
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         shell: pwsh
         run: |
-          $check = Start-Process ./artifacts/win-x64/LocalControl.exe -ArgumentList '--health-check' -PassThru
-          if (-not $check.WaitForExit(30000)) { $check.Kill(); throw 'Native startup check timed out' }
-          if ($check.ExitCode -ne 0) { throw 'Native startup check failed' }
-      - name: Upload development packages
+          New-Item artifacts/legacy -ItemType Directory -Force | Out-Null
+          gh release download v0.3.0-dev --pattern 'LocalControl-0.3.0-dev-Setup.exe*' --dir artifacts/legacy
+          if ($LASTEXITCODE -ne 0) { throw 'Previous release download failed' }
+          $expected = (Get-Content artifacts/legacy/LocalControl-0.3.0-dev-Setup.exe.sha256 -Raw).Trim().Split(' ')[0]
+          if ((Get-FileHash artifacts/legacy/LocalControl-0.3.0-dev-Setup.exe -Algorithm SHA256).Hash -ne $expected) { throw 'Previous installer checksum mismatch' }
+      - name: Installed WebView2, Russian wizard, update and uninstall checks
+        shell: pwsh
+        run: ./scripts/check-windows.ps1 -Version '${{ steps.version.outputs.version }}' -LegacySetup ./artifacts/legacy/LocalControl-0.3.0-dev-Setup.exe
+      - name: Upload checked packages
         uses: actions/upload-artifact@v4
         with:
-          name: LocalControl-0.3.0-dev-win-x64
+          name: LocalControl-${{ steps.version.outputs.version }}-win-x64
           path: |
             artifacts/*.zip
             artifacts/*.exe
             artifacts/*.sha256
           if-no-files-found: error
+      - name: Upload Windows verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-QA-${{ steps.version.outputs.version }}
+          path: artifacts/qa/
+          if-no-files-found: ignore
   publish:
     needs: build
-    # Initial publication is explicitly requested by the owner. Fork PRs cannot publish.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'release/0.3.0-dev'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: LocalControl-0.3.0-dev-win-x64
+          name: LocalControl-${{ needs.build.outputs.version }}-win-x64
           path: packages
-      - name: Publish verified build packages
+      - name: Publish installer and updater as a regular release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+          SOURCE_SHA: ${{ github.sha }}
+          VERSION: ${{ needs.build.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
           cd packages
           sha256sum --check *.sha256
-          test -s LocalControl-0.3.0-dev-Setup.exe
+          test -s "LocalControl-$VERSION-Setup.exe"
           cat > release-notes.md <<'NOTES'
-          Первая Windows-сборка LocalControl. Скачать установщик: LocalControl-0.3.0-dev-Setup.exe.
+          Один Setup.exe для первой установки и обновления. При обновлении запустите его поверх текущей версии: настройки, устройства и полученные файлы сохраняются.
 
-          Portable ZIP запускается после распаковки всей папки; .NET включён. Для интерфейса требуется WebView2.
+          Исправлены HTTP 404 при открытии приложения, повторный запуск, русские подписи установщика и удаление работающей программы. Добавлен логотип с монитором и клавиатурой в стиле LocalCloud.
 
-          Перед публикацией выполнены .NET build, Core/API tests и браузерные проверки. Это предварительный выпуск: реальные Core Audio, установка/удаление и подключение iPhone ещё требуют проверки на Windows 11.
+          До публикации проверены C# и production web build, API, браузерный интерфейс, реальный установленный WebView2, запуск второго экземпляра, обновление с 0.3.0 и удаление с сохранением данных на Windows runner. Проверка iPhone и конкретных аудиоустройств остаётся отдельным пользовательским этапом.
 
-          Репозиторий содержит исходники. Версия не объявляется stable. Автоматический канал обновлений не включён.
+          Исходники и README находятся в main. .NET включён; WebView2 устанавливается при отсутствии. Установщик не подписан Authenticode.
           NOTES
-          gh release create v0.3.0-dev --target "$SOURCE_SHA" --title "LocalControl 0.3.0-dev" --prerelease --notes-file release-notes.md LocalControl-0.3.0-dev-Setup.exe LocalControl-0.3.0-dev-Setup.exe.sha256 LocalControl-0.3.0-dev-win-x64.zip LocalControl-0.3.0-dev-win-x64.zip.sha256
+          gh release create "v$VERSION" --target "$SOURCE_SHA" --title "LocalControl $VERSION" --latest --notes-file release-notes.md "LocalControl-$VERSION-Setup.exe" "LocalControl-$VERSION-Setup.exe.sha256"

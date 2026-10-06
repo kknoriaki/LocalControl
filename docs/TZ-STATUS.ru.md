@@ -1,3 +1,5 @@
+> Исторический отчёт для 0.2/0.3.0. Актуальные изменения и проверки: README.md, CHANGELOG.md, scripts/check-windows.ps1 и Windows QA artifacts.
+
 # Состояние полного ТЗ — 0.3.0-dev, 6 октября 2026
 
 «Исходники» означает код и API/UI wiring. Windows execution не проверено: SDK/runner недоступен. До runtime QA ни одна native функция не обозначается как стабильная.

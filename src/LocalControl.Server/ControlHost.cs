@@ -192,8 +192,9 @@ public sealed partial class ControlHost(IComputer computer, TrustStore trust, st
         }
         app.UseDefaultFiles();
         app.UseStaticFiles();
-        // Unknown API paths must stay 404; don't serve SPA HTML for an admin route on LAN.
-        app.MapFallback((HttpContext ctx) => { ctx.Response.StatusCode = 404; return Task.CompletedTask; });
+        // Leave unmatched requests to the framework's 404 handler. A fallback
+        // endpoint would match '/' before UseDefaultFiles and prevent static
+        // middleware from serving index.html. Unknown API routes remain 404.
         return app;
     }
     private static void Require(HttpContext ctx, string permission)

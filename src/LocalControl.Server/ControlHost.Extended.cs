@@ -19,6 +19,7 @@ public sealed record RemoteTicket(string Id,string Monitor,DateTimeOffset Expire
 public sealed partial class ControlHost
 {
     public Func<string,Task>? ApplyUpdate { get; set; }
+    public Action? OpenDownloads { get; set; }
     private sealed class RemoteLease(string owner,RemoteTicket ticket){public string Owner=owner;public RemoteTicket Ticket=ticket;public long LastFrame;}
     private readonly ConcurrentDictionary<string,RemoteLease> remotes=[];
     private IExtendedComputer Extended()=>computer as IExtendedComputer??throw new ControlException("capability_unavailable","Эта возможность недоступна в текущей среде.",501);
@@ -66,6 +67,7 @@ public sealed partial class ControlHost
         app.MapDelete("/api/v1/transfers/{id}",(string id,HttpContext context)=>{if(!Session(context).Desktop)Require(context,Permissions.TransferSend);transfers.Cancel(id,Session(context).DeviceId,Session(context).Desktop);return Results.NoContent();});
         app.MapGet("/api/v1/transfers/{id}/download",(string id,HttpContext context)=>{Require(context,Permissions.TransferReceive);var file=transfers.Download(id,Session(context).DeviceId);return Results.File(file.Path,"application/octet-stream",file.Name,enableRangeProcessing:true);});
         if(!admin)return;
+        app.MapPost("/api/v1/desktop/downloads", () => { if (OpenDownloads is null) throw new ControlException("downloads_unavailable", "Откройте страницу Releases в браузере.", 409); OpenDownloads(); return Results.NoContent(); });
         app.MapPost("/api/v1/desktop/updates",async(UpdateRequest value)=>{
             if(ApplyUpdate is null)throw new ControlException("update_unavailable","Обновление доступно только в native Windows приложении.",409);
             await ApplyUpdate(value.Manifest);return Results.Ok(new{scheduled=true});
